@@ -6,7 +6,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
-
+ // loads a bin file
 int main() {
     int fd = open("test.bin", O_RDONLY);
     if (fd < 0) {

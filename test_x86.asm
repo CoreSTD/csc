@@ -7,6 +7,7 @@ section .text
     global _start
 
 _start:
+    xor eax, eax
     mov eax, 3
     mov ebx, 0
     lea ecx, [noob]

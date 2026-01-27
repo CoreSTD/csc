@@ -7,6 +7,7 @@ section .text
     global _start
 
 _start:
+    xor rax, rax
     mov rax, 0
     mov rdi, 0
     lea rsi, [noob]

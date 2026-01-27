@@ -31,30 +31,33 @@ reg_info REGISTERS[] = {
 };
 
 u8 *mov_imm32_reg(mov reg, u64 n) {
-    u8 *code = allocate(sizeof(u8), 5);
-    code[0] = reg;
-    code[1] = n & 0xFF;
-    code[2] = (n >> 8) & 0xFF;
-    code[3] = (n >> 16) & 0xFF;
-    code[4] = (n >> 24) & 0xFF;
-
-    return code;
+    return to_heap((u8 []){ reg , n & 0xFF, (n >> 8) & 0xFF, (n >> 16) & 0xFF, (n >> 24) & 0xFF}, sizeof(u8) * 5);
 }
 
 u8 *mov_imm64_reg(mov reg, u64 n) {
-    return (u8 []){ 0x48, n, n & 0xFF, (n >> 8) & 0xFF, (n >> 16) & 0xFF, (n >> 24) & 0xFF, (n >> 32) & 0xFF, (n >> 40) & 0xFF, (n >> 48) & 0xFF, (n >> 56) & 0xFF };
+    return to_heap(
+        (u8 []){ 
+            0x48, 
+            n, 
+            n & 0xFF, 
+            (n >> 8) & 0xFF, 
+            (n >> 16) & 0xFF, 
+            (n >> 24) & 0xFF, 
+            (n >> 32) & 0xFF, 
+            (n >> 40) & 0xFF, 
+            (n >> 48) & 0xFF, 
+            (n >> 56) & 0xFF 
+        },
+        sizeof(u8) * 10
+    );
 }
 
-// x86_64
 u8 *invoke_syscall() {
-    u8 *code = allocate(sizeof(u8), 2);
-    code[0] = 0x0F;
-    code[1] = 0x05;
-    return code;
+    return to_heap((u8 []){0x0F, 0x05}, sizeof(u8) * 2);
 }
 
 u8 *invoke_0x80() {
-    return (u8 []){ 0xCD, 0x80 };
+    return to_heap((u8 []){ 0xCD, 0x80 }, sizeof(u8) * 2);
 }
 
 typedef struct 
@@ -128,7 +131,7 @@ opc convert_asm(string q, ptr p)
             u64 value = str_to_int(args[2]); // This needs to be checked for max number of i32
             _printf("Num: %d | ", (void *)&value);
             u8 *c0de;
-            if(value <= 0x7FFFFFFF) {
+            if((i64)value >= -0x80000000LL && (i64)value <= 0x7FFFFFFFLL) {
                 println("32-bit");
                 c0de = mov_imm32_reg(reg, value);
             } else {

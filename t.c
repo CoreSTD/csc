@@ -1,5 +1,4 @@
-#include <clibp.h>
-
+#include <libbase.h>
 
 // x86
 typedef enum {
@@ -32,7 +31,14 @@ reg_info REGISTERS[] = {
 };
 
 u8 *mov_imm32_reg(mov reg, u64 n) {
-    return (u8 []){ reg, n & 0xFF, (n >> 8) & 0xFF, (n >> 16) & 0xFF, (n >> 24) & 0xFF };
+    u8 *code = allocate(sizeof(u8), 5);
+    code[0] = reg;
+    code[1] = n & 0xFF;
+    code[2] = (n >> 8) & 0xFF;
+    code[3] = (n >> 16) & 0xFF;
+    code[4] = (n >> 24) & 0xFF;
+
+    return code;
 }
 
 u8 *mov_imm64_reg(mov reg, u64 n) {
@@ -41,7 +47,10 @@ u8 *mov_imm64_reg(mov reg, u64 n) {
 
 // x86_64
 u8 *invoke_syscall() {
-    return (u8 []){ 0x0f, 0x05 };
+    u8 *code = allocate(sizeof(u8), 2);
+    code[0] = 0x0F;
+    code[1] = 0x05;
+    return code;
 }
 
 u8 *invoke_0x80() {
@@ -82,7 +91,7 @@ mov reg_to_type(string reg)
 
 opc convert_asm(string q, ptr p)
 {
-    if(!q || !p)
+    if(!q)
         return (opc){0};
 
     int argc = 0;
@@ -95,7 +104,7 @@ opc convert_asm(string q, ptr p)
     if(str_startswith(q, "mov"))
     {
         if(argc < 3)
-            clibp_panic("Invalid opcode...!");
+            lb_panic("Invalid opcode...!");
 
         // Pointer Detected
         if(str_startswith(args[2], "0x"))
@@ -113,20 +122,35 @@ opc convert_asm(string q, ptr p)
         if(is_number(args[2]))
         {
             mov reg = reg_to_type(args[1]);
-            u64 value = args[2][0] + '0'; // This needs to be checked for max number of i32
-            OpCodes[OpCodeCount++] = (opc){
-                .code = value <= 0x7FFFFFFF ? mov_imm32_reg(reg, value) : mov_imm64_reg(reg, value),
+            char buff[100];
+            byte_to_hex(reg, buff);
+            _printf("Register: %s | ", buff);
+            u64 value = str_to_int(args[2]); // This needs to be checked for max number of i32
+            _printf("Num: %d | ", (void *)&value);
+            u8 *c0de;
+            if(value <= 0x7FFFFFFF) {
+                println("32-bit");
+                c0de = mov_imm32_reg(reg, value);
+            } else {
+                println("64-bit");
+                c0de = mov_imm64_reg(reg, value);
+            }
+
+            opc c = (opc){
+                .code = c0de,
                 .needs_ptr = 0,
-                .bytes = 3
+                .bytes = 5
             };
+            OpCodes[OpCodeCount++] = c;
         }
+        return (opc){0};
     }
 
     // lea reg, [VARIABLE]
     if(str_startswith(q, "lea"))
     {
         if(argc < 3)
-            clibp_panic("Invalid opcode...!");
+            lb_panic("Invalid opcode...!");
 
         // Variable detected ()
         if(str_startswith(args[2], "[") && str_endswith(args[2], "]"))
@@ -136,23 +160,37 @@ opc convert_asm(string q, ptr p)
     }
 
     // syscall
-    if(!str_startswith(q, "syscall"))
+    if(str_startswith(q, "syscall"))
     {
-
+        OpCodes[OpCodeCount++] = (opc){
+            invoke_syscall(),
+            0,
+            2
+        };
     }
 
     return (opc){0};
 }
 
-// opc create_op_code_line(u8 *opcode, int bytes) {
-//     return (opc){
-//         .code = {},
-//         .needs_ptr
-//     };
-// }
-
 i8 entry()
 {
-    
+    int n = 4;
+    convert_asm("mov rax, 1", 0);
+    convert_asm("mov rdi, 1", 0);
+    convert_asm("mov rsi, 3", 0);
+    convert_asm("mov rdx, 3", 0);
+    convert_asm("syscall", 0);
+    println("OpCodes: ");
+    for(int i = 0; i < OpCodeCount; i++)
+    {
+        char byte[3] = {0};
+        _printf("Bytes: %d -> ", (void *)&OpCodes[i].bytes);
+        for(int c = 0; c < OpCodes[i].bytes; c++)
+        {
+            byte_to_hex(OpCodes[i].code[c], byte);
+            _printf(c == OpCodes[i].bytes - 1 ? "%s" : "%s, ", byte);
+        }
+        println(NULL);
+    }
     return 0;
 }

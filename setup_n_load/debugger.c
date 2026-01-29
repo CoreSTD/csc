@@ -191,10 +191,6 @@ int entry(int argc, string argv[])
         byte_to_hex(b->OPCODE[i], byte);
         _printf(i == nl - 5 ? "%s" : "%s, ", byte);
     }
-
-    __syscall__(page_start, _HEAP_PAGE_, PROT_READ | PROT_EXEC, -1, -1, -1, _SYS_MPROTECT);
-    println("EXECUTING");
-    void *(*test)() = (void *)b->OPCODE;
-    test();
+    
     return 0;
 }

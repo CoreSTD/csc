@@ -47,14 +47,15 @@
         _no = 0,
         xor = 1,
         mov = 2,
-        syscall = 1,
-        int_0x80 = 2
+        syscall = 3,
+        int_0x80 = 4
     } INSTRUCTIONS;
 
-    #define SYSCALL {0x0F, 0x05}
-    #define INI_0x80 {0xCD, 0x80}
-    #define RET {0xC3}
+    #define SYSCALL     {0x0F, 0x05}
+    #define INI_0x80    {0xCD, 0x80}
+    #define RET         {0xC3}
 
+    /* Current supported instructions */
     #define MAX_INSTRUCTIONS 4
     void INSTRUCTIONS[][2] = {
         {(void *)xor, "xor"},
@@ -63,8 +64,18 @@
         {(void *)int_0x80, "int 0x80"}
     };
 
+    /* File Byte Indentications */
     const u8 NULL_TERMINATOR = '\0';
-    const u8 NULL_END = 0x00;
+
+    /* The beginning of the string section */
+    const u8 E_O_C = {0xFF, 0x00, 0xFF};
+
+    /* 
+        This goes after a string's length before the string in binary 
+        example: 0xFF 0x00 0xFF 0xA2 0xFF --String--
+    */
     const u8 BLACKSPACE = 0xFF;
+    bool reached_end_of_code(u8 *binary)
+    { return binary[3] ? mem_cpy(binary, E_O_C, 3) : false; }
 
 #endif

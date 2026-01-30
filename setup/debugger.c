@@ -1,6 +1,59 @@
 #include <libbase.h>
 
 typedef enum {
+    eax = 0xB8,
+    ecx = 0xB9,
+    edx = 0xBA,
+    ebx = 0xBB,
+    esp = 0xBC,
+    ebp = 0xBD,
+    esi = 0xBE,
+    edi = 0xBF
+} mov;
+
+typedef struct {
+    u8 opcode;
+    const string x86;
+    const string x64;
+} reg_info;
+
+#define REG_COUNT 8
+reg_info REGISTERS[] = {
+    { eax, "eax", "rax" },
+    { ebx, "ebx", "rbx" },
+    { ecx, "ecx", "rcx" },
+    { edx, "edx", "rdx" },
+    { ebp, "ebp", "rbp" },
+    { esp, "esp", "rsp" },
+    { edi, "edi", "rdi" },
+    { esi, "esi", "rsi" }
+};
+
+mov is_reg_valid(u8 reg)
+{
+	for(int i = 0; i < REG_COUNT; i++)
+	{
+		if(REGISTERS[i].opcode == reg || REGISTERS[i].opcode == reg)
+			return 1;
+	}
+
+	return 0;
+}
+
+mov reg_to_type(string reg)
+{
+    for(int i = 0; i < REG_COUNT; i++)
+    {
+        if(str_cmp(REGISTERS[i].x86, reg) || str_cmp(REGISTERS[i].x64, reg))
+            return REGISTERS[i].opcode;
+    }
+
+    return -1;
+}
+
+int BUFFERS = 0;
+
+typedef enum {
     x = 0,
     x86 = 0x32,
     x86_64 = 0x64
@@ -54,9 +107,10 @@ binary_t *init_lb(string filename)
     b->size = file_content_size(b->file);
     if(b->size <= 0)
         lb_panic("Unable to reach EOF...!");
-
     b->buffer = allocate(0, b->size);
     __syscall__(b->file, (long)b->buffer, b->size, -1, -1, -1, _SYS_READ);
+
+	print_args((string []){"File: ", filename, " -> Size: ", NULL}), _printi(b->size), println(NULL);
     file_close(b->file);
     return b;
 }
@@ -66,15 +120,16 @@ fn validate_file(binary_t *b) {
     if(!(lb = is_file_lb(b->buffer)))
         println("Not a LB FILE!");
 
-    _printf("Is LB binary: %s\n", lb ? "Yes" : "No");
-    
+    print_args((string []){"Is LB binary: ", lb ? "Yes" : "No", "\n", NULL});
+
     if((type = is_file_executable(b->buffer + LB_TYPE_OFFSET)) == -1)
         lb_panic("Unable to detect lb file type");
 
-    _printf("File Type: %s\n", type == 0 ? "Executable" : type ? "Shared Lib" : "None");
+    print_args((string []){"File Type: ", type == 0 ? "Executable" : type ? "Shared Lib" : "None", "\n", NULL});
 
+	b->ARCH = (b->buffer + 5)[0];
     if(is_file_x86(b->ARCH) > -1)
-        _printf("Is a 32-bit file\n", NULL);
+        print("Is a "), print(!b->ARCH ? "32-bit" : "64-bit"), println(" file");
 }
 
 fn parse_file(binary_t *b)
@@ -144,28 +199,13 @@ fn parse_buffers(binary_t *b)
     }
 }
 
-int entry(int argc, string argv[])
+fn search_n_replace_pointers(binary_t *b)
 {
-    binary_t *b = init_lb("fag.bin");
-    if(b->size == 0)
-        lb_panic("No bytes in file to read...!");
-
-    validate_file(b);
-    parse_file(b);
-    parse_buffers(b);
-    
-    uintptr_t page_start = (uintptr_t)b->OPCODE & ~(_HEAP_PAGE_ - 1);
-
-    _printf("Buffer Start: %d\n", (void *)&b->BUFFER_SEG);
-    for(int i = 0 ; i < 2; i++)
-        println(b->STRINGS[i]);
-    
-    println("CODE SEGMENT");
-    char byte[3];
+	char byte[3];
     for(int i = 0, nl = 0, strs = 0; i < b->CODE_COUNT; i++)
     {
         if(i == nl + 5) {
-            println(NULL);
+            if(__LB_DEBUG__) println(NULL);
             nl += 5;
         }
 
@@ -175,22 +215,77 @@ int entry(int argc, string argv[])
             size_t placeholder_offset = i;
             for(size_t j = 0; j < sizeof(uintptr_t); j++) {
                 b->OPCODE[placeholder_offset + j] = (addr >> (j * 8)) & 0xFF;
-                char byte[3];
-                byte_to_hex(b->OPCODE[i], byte);
-                _printf(j == sizeof(uintptr_t) - 1 ? "%s" : "%s, ", byte);
+                if(__LB_DEBUG__) {
+	                byte_to_hex(b->OPCODE[i], byte);
+    	            _printf(j == sizeof(uintptr_t) - 1 ? "%s" : "%s, ", byte);
+    	        }
             }
 
-            _printf(" ; Replacing 8-bit pointer: %p -> %s", (void*)addr, b->STRINGS[strs - 1]);
+            if(__LB_DEBUG__) _printf(" ; Replacing 8-bit pointer: %p -> %s", (void*)addr, b->STRINGS[strs - 1]);
 
             i += sizeof(uintptr_t) - 1;
             nl += 10;
             continue;
         }
 
-        char byte[3];
-        byte_to_hex(b->OPCODE[i], byte);
-        _printf(i == nl - 5 ? "%s" : "%s, ", byte);
+		if(__LB_DEBUG__) {
+    	    byte_to_hex(b->OPCODE[i], byte);
+	        _printf(i == nl - 5 ? "%s" : "%s, ", byte);
+	    }
     }
-    
-    return 0;
+}
+
+fn debug(binary_t *b, int s)
+{
+	println("\x1b[32m# ~ [ !CODE SEGMENT! ] ~ #\x1b[39m");
+	char byte[3]; int bytes;
+	for(int i = 0; i < b->CODE_COUNT; i++)
+	{
+		if(is_reg_valid(b->OPCODE[i]) || (i + 1 < b->CODE_COUNT && b->OPCODE[i] == 0x0F && b->OPCODE[i + 1] == 0x05) || b->OPCODE[i] == 0xC3) {
+			print("\r\033[32C | Bytes: "), bytes > 9 ? _printi(bytes) : printi(bytes), println(NULL);
+			bytes = 0;
+		}
+
+		u32 v;
+		mem_cpy(&v, &b->OPCODE[i], sizeof(u32));
+		if(v == (u32)0x10000001)
+			println("HERE");
+
+		bytes++;
+		byte_to_hex(b->OPCODE[i], byte);
+		print(byte), print(i == b->CODE_COUNT - 1 ? " ": ", ");
+		if(b->OPCODE[i] == 0xC3)
+			break;
+	}
+
+	if(!s) return;
+	println("\n\x1b[32m# ~ [ !DATA SEGMENT! ] ~ #\x1b[39m");
+    for(int i = 0 ; i < 2; i++) {
+    	int sz = __get_size__(b->STRINGS[i]) - 1;
+    	print("Byte: "), _printi(sz), print(" -> "), print(b->STRINGS[i]), print("\t: ");
+    	for(int c = 0; b->STRINGS[i][c] != '\0'; c++)
+    	{
+			byte_to_hex(b->STRINGS[i][c], byte);
+			print(byte), print(b->STRINGS[i][c] == 0x0A ? " " : ", ");
+    	}
+    	println(NULL);
+    }
+}
+
+int entry(int argc, string argv[])
+{
+	println("\x1b[32m# ~ [ !OPENING & VALIDATING BIN! ] ~ #\x1b[39m");
+    binary_t *b = init_lb("fag.bin");
+    if(b->size == 0)
+        lb_panic("No bytes in file to read...!");
+
+    validate_file(b);
+    parse_file(b);
+	debug(b, 0);
+    parse_buffers(b);
+    search_n_replace_pointers(b);
+    uintptr_t page_start = (uintptr_t)b->OPCODE & ~(_HEAP_PAGE_ - 1);
+
+	debug(b, 1);
+	return 0;
 }

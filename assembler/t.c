@@ -160,7 +160,7 @@ opc convert_asm(string q, ptr p)
     if(str_startswith(q, "mov"))
     {
         if(argc < 3)
-            lb_panic("Invalid opcode...!");
+            fsl_panic("Invalid opcode...!");
 
         // Pointer Detected
         if(str_startswith(args[2], "0x"))
@@ -267,6 +267,7 @@ i8 entry(int argc, string argv[])
         .needs_ptr = 0
     };
 
+    // Only person in com whos made a real x86/x86_64 NASM COMPILER :3333333333333
     convert_asm("xor rax, rax", 0);
     convert_asm("mov eax, 1", 0);
     convert_asm("mov ebx, 1", 0);
@@ -287,6 +288,7 @@ i8 entry(int argc, string argv[])
         .needs_ptr = 0
     };
     OpCodes[OpCodeCount++] = (opc){
+        //                      v CANT SEE THE 3 BYTES? (LOL)???????????? CRYN RN
         .code = to_heap((u8 []){0xFF, 0x00, 0xFF}, 3),
         .bytes = 3,
         .needs_ptr = 0
@@ -319,13 +321,13 @@ i8 entry(int argc, string argv[])
 
     file_write(file, final_executable, idx);
     file_write(file, &hello_len, sizeof(u8));
-    file_write(file, &BLACKSPACE, sizeof(u8));
+    file_write(file, (const string)&BLACKSPACE, sizeof(u8));
     file_write(file, "Hello\n", hello_len);
-    file_write(file, &NULL_TERMINATOR, sizeof(u8));
+    file_write(file, (const string)&NULL_TERMINATOR, sizeof(u8));
     file_write(file, &test_len, sizeof(u8));
-    file_write(file, &BLACKSPACE, sizeof(u8));
+    file_write(file, (const string)&BLACKSPACE, sizeof(u8));
     file_write(file, "TEST\n", test_len);
-    file_write(file, &NULL_TERMINATOR, sizeof(u8));
+    file_write(file, (const string)&NULL_TERMINATOR, sizeof(u8));
     file_close(file);
     return 0;
 }

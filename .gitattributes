@@ -1,2 +1,9 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+
+B8, 01
+mov rax, 1 // sys_write
+
+BB, 01
+mov rdi, 1 // stdout

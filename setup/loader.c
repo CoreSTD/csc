@@ -49,11 +49,11 @@ binary_t *init_lb(string filename)
     b->filename = filename;
     b->file = open_file(filename, 0, 0);
     if(!b->file)
-        lb_panic("Unable to open binary file...!");
+        fsl_panic("Unable to open binary file...!");
 
     b->size = file_content_size(b->file);
     if(b->size <= 0)
-        lb_panic("Unable to reach EOF...!");
+        fsl_panic("Unable to reach EOF...!");
 
     b->buffer = allocate(0, b->size);
     __syscall__(b->file, (long)b->buffer, b->size, -1, -1, -1, _SYS_READ);
@@ -69,7 +69,7 @@ fn validate_file(binary_t *b) {
     _printf("Is LB binary: %s\n", lb ? "Yes" : "No");
     
     if((type = is_file_executable(b->buffer + LB_TYPE_OFFSET)) == -1)
-        lb_panic("Unable to detect lb file type");
+        fsl_panic("Unable to detect lb file type");
 
     _printf("File Type: %s\n", type == 0 ? "Executable" : type ? "Shared Lib" : "None");
 
@@ -81,10 +81,10 @@ fn parse_file(binary_t *b)
 {
     long ret = __syscall__(0, _HEAP_PAGE_, PROT_READ | PROT_EXEC, 0x02 | 0x20 | 0x40 , -1, 0, _SYS_MMAP);
     if(ret < 0)
-        lb_panic("failed to create execution buffer!");
+        fsl_panic("failed to create execution buffer!");
 
     // if ((uintptr_t)ret > 0xFFFFFFFF)
-    //     lb_panic("MAP_32BIT did not give 32-bit address");
+    //     fsl_panic("MAP_32BIT did not give 32-bit address");
 
     b->OPCODE = (u8 *)ret;
     b->CODE_COUNT = 0;
@@ -96,7 +96,7 @@ fn parse_file(binary_t *b)
             break;
         }
         
-        if(__LB_DEBUG__) {
+        if(__FSL_DEBUG__) {
             char buff[3];
             byte_to_hex(((char *)b->buffer)[i], buff);
             _printf("%s, ", buff);
@@ -117,7 +117,7 @@ fn parse_buffers(binary_t *b)
             { i+= 2; continue; }
 
         if(b->buffer[i] == 0x00) {
-            if(__LB_DEBUG__) _printf(" -> %s\n", nbuff)
+            if(__FSL_DEBUG__) _printf(" -> %s\n", nbuff)
             b->STRINGS[bidx++] = to_heap(nbuff, n);
             b->STRINGS = reallocate(b->STRINGS, sizeof(u8 *) * (bidx + 1));
             b->STRINGS[bidx] = NULL;
@@ -127,7 +127,7 @@ fn parse_buffers(binary_t *b)
         }
 
         if(is_ascii(b->buffer[i]) && b->buffer[i + 1] == 0xFF) {
-            if(__LB_DEBUG__) println("\nSIZE DETECTED");
+            if(__FSL_DEBUG__) println("\nSIZE DETECTED");
             i++;
             continue;
         }
@@ -135,7 +135,7 @@ fn parse_buffers(binary_t *b)
         nbuff[n++] = b->buffer[i];
         nbuff[n] = '\0';
 
-        if(__LB_DEBUG__) {
+        if(__FSL_DEBUG__) {
             char buff[3];
             byte_to_hex(((char *)b->buffer)[i], buff);
             
@@ -148,7 +148,7 @@ int entry(int argc, string argv[])
 {
     binary_t *b = init_lb("fag.bin");
     if(b->size == 0)
-        lb_panic("No bytes in file to read...!");
+        fsl_panic("No bytes in file to read...!");
 
     validate_file(b);
     parse_file(b);
